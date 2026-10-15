@@ -10,7 +10,7 @@ abstract class AppDatabase : RoomDatabase(){
 
     //private static AppDataBase INSTANCE = null; - java
 
-    abstract fun filmesDao(): FilmesDAO
+    abstract fun filmesDAO(): FilmesDAO
 
     companion object{
 

@@ -1,52 +1,26 @@
 package com.example.introbanco
 
-import android.R.attr.id
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.introbanco.ui.theme.IntroBancoTheme
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,129 +28,153 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             IntroBancoTheme {
-
-                TelaCadastroFilmes()
-
+                TelaPrincipal()
             }
         }
     }
 }
 
-@Preview
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TelaCadastroFilmes(){
+fun TelaPrincipal() {
+    val context = LocalContext.current
+    val db = remember { AppDatabase.getDatabase(context) }
+    val filmesDao = remember { db.filmesDAO() }
+    val scope = rememberCoroutineScope()
 
     var nome by remember { mutableStateOf("") }
-    var descricao by remember { mutableStateOf("") }
+    var desc by remember { mutableStateOf("") }
+    var listaFilmes by remember { mutableStateOf<List<Filmes>>(emptyList()) }
 
-    var filmes by remember { mutableStateOf<List<Filmes>>(emptyList()) }
-
-    val contex = LocalContext.current
-    val db = AppDatabase.getDatabase(contex)
-    val filmesDao = db.filmesDao()
-
-    LaunchedEffect(Unit) {
-        filmes = buscarFilmes(filmesDao)
-        Log.d("Busca ok", "... ${filmes}")
+    // Função para carregar os filmes do banco
+    fun atualizarLista() {
+        scope.launch {
+            listaFilmes = buscarFilmes(filmesDao)
+        }
     }
 
-    Column (
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    // Carrega a lista ao iniciar
+    LaunchedEffect(Unit) {
+        atualizarLista()
+    }
 
-        Card(
-            modifier = Modifier.fillMaxWidth()
-                .padding(10.dp)
-                .background(Color.LightGray, RectangleShape),
-            border = BorderStroke(1.dp, Color.Black)
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("CineList 2025", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
+        },
+        modifier = Modifier.fillMaxSize()
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .padding(innerPadding)
+                .fillMaxSize()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-
-            TextField(
-                value = nome,
-                onValueChange = { nome = it },
-                label = { Text("Nome do Filme") }
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            TextField(
-                value = descricao,
-                onValueChange = { descricao = it },
-                label = { Text("Descricao") }
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Button(
-                onClick = {
-                    if(nome.isNotBlank() && descricao.isNotBlank()){
-                        CoroutineScope(Dispatchers.IO).launch {
-                            inserirFilme(nome, descricao, filmesDao)
-                        }
+            // Card de Entrada
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text("Novo Filme", style = MaterialTheme.typography.titleMedium)
+                    
+                    OutlinedTextField(
+                        value = nome,
+                        onValueChange = { nome = it },
+                        label = { Text("Título") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    
+                    OutlinedTextField(
+                        value = desc,
+                        onValueChange = { desc = it },
+                        label = { Text("Descrição") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Button(
+                        onClick = {
+                            if (nome.isNotBlank()) {
+                                scope.launch {
+                                    inserirFilme(nome, desc, filmesDao)
+                                    nome = ""
+                                    desc = ""
+                                    atualizarLista()
+                                }
+                            }
+                        },
+                        modifier = Modifier.align(Alignment.End)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Salvar")
                     }
                 }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text(
+                text = "Minha Coleção",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+
+            // Lista Fluida
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 16.dp)
             ) {
-                Text("Adicionar Filme")
-            }
-
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        LazyColumn {
-            items(filmes){
-                    filme ->
-                umFilme(filme.id, filme.nome, filme.desc)
+                items(listaFilmes) { filme ->
+                    FilmeItem(filme)
+                }
             }
         }
-
-
     }
-
 }
 
-@Preview
 @Composable
-fun umFilme(id:Int = 0, nome: String = "Nome aqui", desc: String = "Descricao aqui"){
+fun FilmeItem(filme: Filmes) {
     Card(
-        modifier = Modifier.height(80.dp).fillMaxWidth().padding(5.dp),
-        elevation = CardDefaults.cardElevation(5.dp),
-        border = BorderStroke(2.dp, Color.Black)
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
     ) {
-        Row(
-            modifier = Modifier.padding(10.dp).fillMaxSize(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = "$id", style = MaterialTheme.typography.bodyMedium)
-
-            Column {
-                Text(text = nome, style = MaterialTheme.typography.titleLarge)
-                Text(text = desc, style = MaterialTheme.typography.titleSmall)
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(text = filme.nome, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            if (filme.desc.isNotBlank()) {
+                Text(text = filme.desc, style = MaterialTheme.typography.bodyMedium)
             }
-
-            Icon(Icons.Default.Edit, "", modifier = Modifier.size(30.dp))
-            Icon(Icons.Default.Close, "", modifier = Modifier.size(30.dp))
         }
     }
 }
 
-suspend fun buscarFilmes(filmesDao: FilmesDAO): List<Filmes> {
-    return try {
+suspend fun buscarFilmes(filmesDao: FilmesDAO): List<Filmes> = withContext(Dispatchers.IO) {
+    try {
         filmesDao.buscarTodosFilmes()
     } catch (e: Exception) {
-        Log.e("Erro ao buscar", "${e.message}")
+        Log.e("DB_ERROR", "Erro ao buscar: ${e.message}")
         emptyList()
     }
 }
 
-suspend fun inserirFilme(nome: String, desc: String, filmesDao: FilmesDAO){
-    try{
-        filmesDao.inserir(Filmes(id = 0, nome = nome, desc = desc))
-    }catch (e: Exception){
-        Log.e("Erro ao adicionar", "Msg: ${e.message}")
+suspend fun inserirFilme(nome: String, desc: String, filmesDao: FilmesDAO) = withContext(Dispatchers.IO) {
+    try {
+        filmesDao.inserir(Filmes(0, nome, desc))
+    } catch (e: Exception) {
+        Log.e("DB_ERROR", "Erro ao inserir: ${e.message}")
     }
 }

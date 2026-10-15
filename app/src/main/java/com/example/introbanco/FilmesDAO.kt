@@ -8,9 +8,9 @@ import androidx.room3.Query
 interface FilmesDAO {
 
     @Insert
-    fun inserir(filme: Filmes)
+    suspend fun inserir(filme: Filmes)
 
     @Query("SELECT * FROM filmes")
-    fun buscarTodosFilmes() : List<Filmes>
+    suspend fun buscarTodosFilmes() : List<Filmes>
 
 }
